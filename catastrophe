@@ -67,9 +67,9 @@ MOUSE_CLICK_Y=400
 MAP_WIDTH=700
 MAP_HEIGHT=800
 
-# We need a cookie to make requests effectively
-SESSION_COOKIE=4DD1BC5ECCE23E497CC83915A07D6096
-
+# Me want cookie!!!
+# Needed for make requests effectively
+COOKIE_JAR="./cookies"
 
 function prepare_to_request_account() {
   local ENDPOINT="/busquedageoseduvi/buscarCuentaCatastral"
@@ -88,7 +88,7 @@ function prepare_to_request_account() {
   url+="&ocultar=1"
 
   curl $CURL_EXTRA_FLAGS \
-       --cookie JSESSIONID=$SESSION_COOKIE \
+       --cookie-jar $COOKIE_JAR \
        -X GET \
        $url |
        grep -o "Ninguna cuenta catastral encontrada"
@@ -146,7 +146,7 @@ function get_account() {
   local cadastre_number="[[:digit:]]{3}_[[:digit:]]{3}_[[:digit:]]+"
 
   curl $CURL_EXTRA_FLAGS \
-       --cookie JSESSIONID=$SESSION_COOKIE \
+       --cookie $COOKIE_JAR \
        -X GET \
        $url |
        grep -o -E $cadastre_number
