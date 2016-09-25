@@ -19,12 +19,20 @@ function usage() {
       $VERSION
 
   OPTIONS:
+      -z                Get zoning data in a csv format.
+                        (The CSV headers are:
+                          Cadastre number, Borough, Land use, Levels,
+                          Height, Free area percentage, Min living area m2,
+                          Density, Max construct area m2, Allowed livings
+                        )
+
+
       -d                Run cURL with the verbose flag.
       -h                Shows this menu.
 
   EXAMPLE:
       $ catastrophe 19.401408 -99.201958
-      OUTPUT:  037_354_19
+      OUTPUT:  037_354_01
 
   REPOSITORY:
       http://github.com/MrOutis/Catastrophe
@@ -36,11 +44,13 @@ function usage() {
 
 
 # Flags
+FETCH_ZONING_DATA=''
 DEBUG_MODE=''
 
 # Parse flags
-while getopts 'dh' flag; do
+while getopts 'zdh' flag; do
   case "${flag}" in
+    z) FETCH_ZONING_DATA='true' ;;
     d) DEBUG_MODE='true' ;;
     h) usage ;;
   esac
@@ -143,14 +153,72 @@ function get_account() {
   url+="&zFrameVistaAerea=3.0"
   url+="&zMapFrameVistaAerea=1.0"
 
-  local cadastre_number="[[:digit:]]{3}_[[:digit:]]{3}_[[:digit:]]+"
+  local regx_cadastre_number="[[:digit:]]{3}_[[:digit:]]{3}_[[:digit:]]+"
+  local regx_borough="c[A-Z][a-zA-Z]*"
+
+  if [ -z "$FETCH_ZONING_DATA" ]
+  then
+    local search=$regx_cadastre_number
+  else
+    local search="$regx_borough|$regx_cadastre_number"
+  fi
 
   curl $CURL_EXTRA_FLAGS \
        --cookie $COOKIE_JAR \
        -X GET \
        $url |
-       grep -o -E $cadastre_number
+       grep -o -E $search
+}
+
+function fetch_zoning_data() {
+  BOROUGH=$1
+  CADASTRE_NUMBER=$2
+
+  local ENDPOINT="/fichasReporte/fichaInformacion.jsp?"
+  local url=$ROOT_URL$ENDPOINT
+
+  # Parameters
+  url+="?"
+
+  url+="&nombreConexion=$BOROUGH"
+  url+="&cuentaCatastral=$CADASTRE_NUMBER"
+
+  local regx_zoning_html="<td class='zon'[^<>]+>[^<>]+<[^<>]+>"
+  local regx_remove_html_tags='s/<[^<>]*>//g'
+
+  # Print out the cadastre data with the curled zoning data
+  echo "$cadastre_number"
+  echo "$borough"
+
+  curl $CURL_EXTRA_FLAGS \
+       --cookie $COOKIE_JAR \
+       -X GET \
+       $url |
+       grep -o -E "$regx_zoning_html" |
+       sed -e "$regx_remove_html_tags" |
+       head -n 8
+}
+
+function normalize_zoning_data() {
+  sed -r 's/[A-Z]+/\L&/g' |       # All lowercase
+  sed -e 's/\.//g' |              # Remove dots
+  sed -e 's/,/;/g' |              # Change commas for semicolons
+  sed -e 's/-\*-/NA/g'            # Put not available data
+}
+
+function data_to_csv() {
+  paste -s -d ','
 }
 
 prepare_to_request_account
-get_account
+
+if [ -z "$FETCH_ZONING_DATA" ]
+then
+  get_account
+else
+  read -d "\n" borough cadastre_number <<<$(get_account)
+
+  fetch_zoning_data $borough $cadastre_number |
+  normalize_zoning_data |
+  data_to_csv
+fi

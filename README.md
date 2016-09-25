@@ -28,8 +28,18 @@ chmod 775 catastrophe
 2) Run it with a latitude and a longitude:
 
 ```bash
-./catastrophe 19.401408 -99.201958
+$ catastrophe 19.401408 -99.201958
+# OUTPUT:   037_354_01
 ```
+
+2.1) Fetch the zoning data in a CSV format, by appending the `-z` flag:
+
+```bash
+$ catastrophe -z 19.401408 -99.201958
+# HEADERS:  cadastre_number,borough,land_use,levels,height,free_area_percentage,min_living_area_m2,density,max_construct_area_m2,allowed_livings
+# OUTPUT:   037_354_01,calvaroobregon,habitacional,3,NA,30,0,m(media; 1 viv c/ 50 m2),335,3
+```
+
 
 3) Enjoy your cadastre account :neckbeard:
 
@@ -38,14 +48,7 @@ chmod 775 catastrophe
 
 ༼ つ ◕_◕ ༽つ Give me your pull request...
 
-- [ ] Write more context info
-- [ ] Write some tests
-- [ ] Code another script to scrap the cadastre data using [this KMLs][kml-dataset]
-
-
-
-[kml-dataset]: http://datos.labcd.mx/dataset?tags=Catastro
-
+See [this gist](https://gist.github.com/MrOutis/cf1efa937cacec946c46a64077a4c110) with the roadmap.
 
 # Contributors
 
