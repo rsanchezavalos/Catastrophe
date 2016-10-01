@@ -58,7 +58,7 @@ mouse_click_y=400
 map_width=700
 map_height=800
 
-cookie_jar='./cookies'
+cookie_jar="./$lat$lon.cookie"
 
 # Flags
 fetch_zoning_data=''
@@ -85,6 +85,10 @@ fi
 ###################
 #    Functions    #
 ###################
+clean() {
+  rm "$cookie_jar"
+}
+
 check_cadastre_account_existance() {
   local endpoint='/busquedageoseduvi/buscarCuentaCatastral'
   local url=$root_url$endpoint
@@ -111,7 +115,7 @@ check_cadastre_account_existance() {
 
   if [[ $result == $error_string ]]; then
     echo "NOT FOUND: $lat $lon"
-    exit 1
+    clean && exit 1
   fi
 }
 
@@ -230,3 +234,5 @@ if [ -n "$fetch_zoning_data" ]; then
 else
   get_account
 fi
+
+clean
