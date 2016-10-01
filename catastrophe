@@ -1,198 +1,203 @@
-#!/bin/bash
+#!/usr/bin/env bash
+version='0.3'
 
-#
-# Wrote by:   Mr. Outis
-#
-
-VERSION="0.2"
-
-function usage() {
+usage() {
   echo \
 """
   NAME:
       catastrophe - Get the cadastre number for a given latitud longitude.
 
+  REPOSITORY:
+      http://github.com/MrOutis/Catastrophe
+
   USAGE:
       catastrophe [options] lat lon
 
   VERSION:
-      $VERSION
+      $version
 
   OPTIONS:
       -z                Get zoning data in a csv format.
-                        (The CSV headers are:
-                          Latitude, Longitude, Cadastre number,
-                          Borough, Land use, Levels, Height,
-                          Free area percentage, Min living area m2,
-                          Density, Max construct area m2, Allowed livings
-                        )
-
+                        The CSV headers (from left to right) are:
+                          - Latitude
+                          - Longitude
+                          - Cadastre number
+                          - Borough
+                          - Land use
+                          - Levels
+                          - Height
+                          - Free area percentage
+                          - Min living area m2,
+                          - Density
+                          - Max construct area m2
+                          - Livings allowed
 
       -d                Run cURL with the verbose flag.
-      -h                Shows this menu.
+      -h                Show this menu.
 
-  EXAMPLE:
+  EXAMPLES:
       $ catastrophe 19.401408 -99.201958
       OUTPUT:  037_354_01
 
-  REPOSITORY:
-      http://github.com/MrOutis/Catastrophe
+      $ catastrophe -z 19.401408 -99.201958
+      OUTPUT:  19.401408,-99.201958,037_354_01,calvaroobregon,habitacional,3,NA,30,0,m(media; 1 viv c/ 50 m2),335,3
 """
   exit 1
 }
 
 [ -z "$2" ] && usage
 
+#################
+#    Globals    #
+#################
+root_url='http://ciudadmx.df.gob.mx:8080/seduvi'
+
+mouse_click_x=350
+mouse_click_y=400
+
+map_width=700
+map_height=800
+
+cookie_jar='./cookies'
 
 # Flags
-FETCH_ZONING_DATA=''
-DEBUG_MODE=''
+fetch_zoning_data=''
+debug_mode=''
+curl_extra_flags='-s'
 
-# Parse flags
+# Parse input
 while getopts 'zdh' flag; do
   case "${flag}" in
-    z) FETCH_ZONING_DATA='true' ;;
-    d) DEBUG_MODE='true' ;;
+    z) fetch_zoning_data='true' ;;
+    d) debug_mode='true' ;;
     h) usage ;;
   esac
 done
 shift $(($OPTIND-1))
 
-if [ -z "$DEBUG_MODE" ]
-then
-  CURL_EXTRA_FLAGS='-s'
-else
-  CURL_EXTRA_FLAGS='-v'
+lat=$1
+lon=$2
+
+if [ -n "$debug_mode" ]; then
+  curl_extra_flags='-v'
 fi
 
-
-# WARNING: Dragons ahead!
-ROOT_URL="http://ciudadmx.df.gob.mx:8080/seduvi"
-
-LAT=$1
-LON=$2
-
-MOUSE_CLICK_X=350
-MOUSE_CLICK_Y=400
-
-MAP_WIDTH=700
-MAP_HEIGHT=800
-
-# Me want cookie!!!
-# Needed for make requests effectively
-COOKIE_JAR="./cookies"
-
-function prepare_to_request_account() {
-  local ENDPOINT="/busquedageoseduvi/buscarCuentaCatastral"
-  local url=$ROOT_URL$ENDPOINT
+###################
+#    Functions    #
+###################
+check_cadastre_account_existance() {
+  local endpoint='/busquedageoseduvi/buscarCuentaCatastral'
+  local url=$root_url$endpoint
+  local error_string='Ninguna cuenta catastral encontrada'
 
   # Parameters
-  url+="?"
+  url+='?'
+  url+="&xScreen=$mouse_click_x"
+  url+="&yScreen=$mouse_click_y"
+  url+="&x=$lon"
+  url+="&y=$lat"
+  url+='&z=0'
+  url+="&mapWidth=$map_width"
+  url+="&mapHeight=$map_height"
+  url+='&ocultar=1'
 
-  url+="&xScreen=$MOUSE_CLICK_X"
-  url+="&yScreen=$MOUSE_CLICK_Y"
-  url+="&x=$LON"
-  url+="&y=$LAT"
-  url+="&z=0"
-  url+="&mapWidth=$MAP_WIDTH"
-  url+="&mapHeight=$MAP_HEIGHT"
-  url+="&ocultar=1"
-
-  curl $CURL_EXTRA_FLAGS \
-       --cookie-jar $COOKIE_JAR \
+  result=$(
+    curl $curl_extra_flags \
+       --cookie-jar $cookie_jar \
        -X GET \
        $url |
-       grep -o "Ninguna cuenta catastral encontrada"
+       grep -o "$error_string"
+  )
+
+  if [[ $result == $error_string ]]; then
+    echo "NOT FOUND: $lat $lon"
+    exit 1
+  fi
 }
 
-function get_account() {
-  local ENDPOINT="/principalMapFrameActualizar.jsp"
-  local url=$ROOT_URL$ENDPOINT
+get_account() {
+  local endpoint='/principalMapFrameActualizar.jsp'
+  local url=$root_url$endpoint
 
-  # Parameters
-  url+="?"
+  local regx_cadastre_number='[[:digit:]]{3}_[[:digit:]]{3}_[[:digit:]]+'
+  local regx_borough='c[A-Z][a-zA-Z]*'
+  local search=$regx_cadastre_number
 
-  url+="&op=-1"
-  url+="&x=$LON"
-  url+="&y=$LAT"
-  url+="&z=1"
-  url+="&mapWidth=$MAP_WIDTH"
-  url+="&mapHeight=$MAP_HEIGHT"
-  url+="&dir=0"
-  url+="&xMouseDown=$MOUSE_CLICK_X"
-  url+="&yMouseDown=$MOUSE_CLICK_Y"
-  url+="&xMouseUp=$MOUSE_CLICK_X"
-  url+="&yMouseUp=$MOUSE_CLICK_Y"
-  url+="&stepZoom=2"
-  url+="&verEscala=1"
-  url+="&verVistaAerea=1"
-  url+="&verControles=1"
-  url+="&xVistaAerea=0"
-  url+="&yVistaAerea=0"
-  url+="&zVistaAerea=0"
-  url+="&setStar=0"
-  url+="&sizeVistaAerea=150"
-  url+="&topStarGuardado=0"
-  url+="&leftStarGuardado=0"
-  url+="&displayLayerGuardado=none"
-  url+="&topLayerGuardado=0"
-  url+="&leftLayerGuardado=0"
-  url+="&widthLayerGuardado=0"
-  url+="&heightLayerGuardado=0"
-  url+="&mapImage=MapStreamServlet\?x=$LON"
-  url+="&y=$LAT"
-  url+="&z=1.0"
-  url+="&mapWidth=$MAP_WIDTH"
-  url+="&mapHeight=$MAP_HEIGHT"
-  url+="&geosetRutaArchivoPrincipal=D:\\seduvidatos\\cartografia\\Default3.mdf"
-  url+="&geosetRutaCarpetaPrincipal=D:\\seduvidatos\\cartografia"
-  url+="&recupSession=1"
-  url+="&guardarMapa=0"
-  url+="&setCopyright=0"
-  url+="&xUtm=0"
-  url+="&yUtm=0"
-  url+="&zFrameVistaAerea=3.0"
-  url+="&zMapFrameVistaAerea=1.0"
-
-  local regx_cadastre_number="[[:digit:]]{3}_[[:digit:]]{3}_[[:digit:]]+"
-  local regx_borough="c[A-Z][a-zA-Z]*"
-
-  if [ -z "$FETCH_ZONING_DATA" ]
-  then
-    local search=$regx_cadastre_number
-  else
-    local search="$regx_borough|$regx_cadastre_number"
+  if [ -n "$fetch_zoning_data" ]; then
+    search="$regx_borough|$regx_cadastre_number"
   fi
 
-  curl $CURL_EXTRA_FLAGS \
-       --cookie $COOKIE_JAR \
+  # Parameters
+  url+='?'
+  url+='&op=-1'
+  url+="&x=$lon"
+  url+="&y=$lat"
+  url+='&z=1'
+  url+="&mapWidth=$map_width"
+  url+="&mapHeight=$map_height"
+  url+='&dir=0'
+  url+="&xMouseDown=$mouse_click_x"
+  url+="&yMouseDown=$mouse_click_y"
+  url+="&xMouseUp=$mouse_click_x"
+  url+="&yMouseUp=$mouse_click_y"
+  url+='&stepZoom=2'
+  url+='&verEscala=1'
+  url+='&verVistaAerea=1'
+  url+='&verControles=1'
+  url+='&xVistaAerea=0'
+  url+='&yVistaAerea=0'
+  url+='&zVistaAerea=0'
+  url+='&setStar=0'
+  url+='&sizeVistaAerea=150'
+  url+='&topStarGuardado=0'
+  url+='&leftStarGuardado=0'
+  url+='&displayLayerGuardado=none'
+  url+='&topLayerGuardado=0'
+  url+='&leftLayerGuardado=0'
+  url+='&widthLayerGuardado=0'
+  url+='&heightLayerGuardado=0'
+  url+="&mapImage=MapStreamServlet\?x=$lon"
+  url+="&y=$lat"
+  url+='&z=1.0'
+  url+="&mapWidth=$map_width"
+  url+="&mapHeight=$map_height"
+  url+='&geosetRutaArchivoPrincipal=D:\\seduvidatos\\cartografia\\Default3.mdf'
+  url+='&geosetRutaCarpetaPrincipal=D:\\seduvidatos\\cartografia'
+  url+='&recupSession=1'
+  url+='&guardarMapa=0'
+  url+='&setCopyright=0'
+  url+='&xUtm=0'
+  url+='&yUtm=0'
+  url+='&zFrameVistaAerea=3.0'
+  url+='&zMapFrameVistaAerea=1.0'
+
+  curl $curl_extra_flags \
+       --cookie $cookie_jar \
        -X GET \
        $url |
        grep -o -E $search
 }
 
-function fetch_zoning_data() {
-  BOROUGH=$1
-  CADASTRE_NUMBER=$2
+fetch_zoning_data() {
+  local borough=$1
+  local cadastre_number=$2
 
-  local ENDPOINT="/fichasReporte/fichaInformacion.jsp?"
-  local url=$ROOT_URL$ENDPOINT
-
-  # Parameters
-  url+="?"
-
-  url+="&nombreConexion=$BOROUGH"
-  url+="&cuentaCatastral=$CADASTRE_NUMBER"
+  local endpoint='/fichasReporte/fichaInformacion.jsp?'
+  local url=$root_url$endpoint
 
   local regx_zoning_html="<td class='zon'[^<>]+>[^<>]+<[^<>]+>"
   local regx_remove_html_tags='s/<[^<>]*>//g'
 
+  # Parameters
+  url+='?'
+  url+="&nombreConexion=$borough"
+  url+="&cuentaCatastral=$cadastre_number"
+
   # Print out the cadastre data with the curled zoning data
   echo "$cadastre_number"
   echo "$borough"
-
-  curl $CURL_EXTRA_FLAGS \
-       --cookie $COOKIE_JAR \
+  curl $curl_extra_flags \
+       --cookie $cookie_jar \
        -X GET \
        $url |
        grep -o -E "$regx_zoning_html" |
@@ -200,26 +205,28 @@ function fetch_zoning_data() {
        head -n 8
 }
 
-function normalize_zoning_data() {
+normalize_zoning_data() {
   sed -r 's/[A-Z]+/\L&/g' |       # All lowercase
   sed -e 's/\.//g' |              # Remove dots
   sed -e 's/,/;/g' |              # Change commas for semicolons
   sed -e 's/-\*-/NA/g'            # Put not available data
 }
 
-function data_to_csv() {
-  echo $LAT,$LON,$(paste -s -d ',')
+data_to_csv() {
+  echo "$lat,$lon,$(paste -s -d ',')"
 }
 
-prepare_to_request_account
+##############
+#    MAIN    #
+##############
+check_cadastre_account_existance
 
-if [ -z "$FETCH_ZONING_DATA" ]
-then
-  get_account
-else
-  read -d "\n" borough cadastre_number <<<$(get_account)
+if [ -n "$fetch_zoning_data" ]; then
+  read -d '\n' borough cadastre_number <<<$(get_account)
 
   fetch_zoning_data $borough $cadastre_number |
   normalize_zoning_data |
   data_to_csv
+else
+  get_account
 fi
