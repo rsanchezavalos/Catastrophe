@@ -4,7 +4,7 @@
 # Wrote by:   Mr. Outis
 #
 
-VERSION="0.1"
+VERSION="0.2"
 
 function usage() {
   echo \
@@ -21,8 +21,9 @@ function usage() {
   OPTIONS:
       -z                Get zoning data in a csv format.
                         (The CSV headers are:
-                          Cadastre number, Borough, Land use, Levels,
-                          Height, Free area percentage, Min living area m2,
+                          Latitude, Longitude, Cadastre number,
+                          Borough, Land use, Levels, Height,
+                          Free area percentage, Min living area m2,
                           Density, Max construct area m2, Allowed livings
                         )
 
@@ -207,7 +208,7 @@ function normalize_zoning_data() {
 }
 
 function data_to_csv() {
-  paste -s -d ','
+  echo $LAT,$LON,$(paste -s -d ',')
 }
 
 prepare_to_request_account
